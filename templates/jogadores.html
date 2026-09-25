@@ -22,13 +22,18 @@
             </div>
             <div class="linha-campos">
                 <div class="campo">
-                    <label for="idade">Idade</label>
-                    <input type="number" id="idade" name="idade" min="0">
+                    <label for="numero_camisa">Número camisa</label>
+                    <input type="number" id="numero_camisa" name="numero_camisa" min="0">
                 </div>
                 <div class="campo">
                     <label for="posicao">Posição</label>
-                        TROCAR PARA SELECT OPTION
-                    <input type="text" id="posicao" name="posicao" placeholder="Ex: Atacante">
+                    <select name="form_tipo" id="posicao">
+                        <option value="atacante">Atacante</option>
+                        <option value="goleiro">Goleiro</option>
+                        <option value="lateral">Lateral</option>
+                        <option value="zagueiro">Zagueiro</option>
+                        <option value="meio_campo">Meio campo</option>
+                    </select>
                 </div>
             </div>
             <div class="campo">
