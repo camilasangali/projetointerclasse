@@ -1,15 +1,94 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, g
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user, LoginManager
+from sqlalchemy.testing.pickleable import User
 
-from banco import tabela_time, tabela_jogador, tabela_partida
+from banco import tabela_time, tabela_jogador, tabela_partida, tabela_movimentacao
 from database import *
 
 app = Flask(__name__)
 app.secret_key = "chave-secreta-interclasse-2026"
 
 
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+login_manager.login_message = "faça login para acessar"
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db_session.remove()
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db_session.get(Usuario, int(user_id))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        senha = request.form.get("senha", "").strip()
+        usuario_sql = select(Usuario).where(Usuario.email == email)
+        usuario_resultado = db_session.execute(usuario_sql).scalar()
+
+        if not usuario_resultado:
+            flash("Falha na autenticação: E-mail não encontrado")
+            return redirect(url_for("login"))
+        if usuario_resultado and usuario_resultado.check_password(senha):
+            login_user(usuario_resultado)
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Falha na autenticação: E-mail e senha não encontrado")
+
+    return render_template(
+        "login.html",
+        registro= request.args.get("registro") == "True"
+
+    )
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+@app.route("/registro", methods=["GET", "POST"])
+def registro():
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip()
+        senha = request.form.get("senha", "").strip()
+
+        if not nome and not email and not senha:
+            flash("Preencha o nome, email, senha", "error")
+            return redirect(url_for("registro"))
+        usuario_sql = select(Usuario).where(Usuario.email == email)
+        usuario_email = db_session.execute(usuario_sql).scalar_one_or_none()
+        if usuario_email:
+            flash("E-mail já cadastrado", "error")
+            return redirect(url_for("registro"))
+        try:
+            novo_usuario = Usuario(
+                nome = nome,
+                email = email
+            )
+            novo_usuario.set_password(senha)
+            db_session.add(novo_usuario)
+            db_session.commit()
+            flash("Usuário criado com sucesso", "success")
+        except SQLAlchemyError as e:
+            flash("Erro no banco")
+            return redirect(url_for("registro"))
+        except SQLAlchemyError as e:
+            flash(f"Erro ao registrar", "error")
+            flash("Erro ao registrar")
+            return render_template("registro.html")
+
+    return render_template("login.html", registro=request.args.get("registro") == "True")
+
 @app.route("/")
+@login_required
+
 def dashboard():
     # Buscar todos os times no banco
     times = tabela_time.select_quantidade_total()
@@ -68,6 +147,42 @@ def novo_jogador():
     # Carregar o formulario
     return render_template("jogadores.html", jogadores=jogadores, times=times)
 
+@app.route("/jogadores/<id_jogador>", methods=["GET", "POST"])
+def editar_jogador(id_jogador):
+    # Buscar o jogador no banco
+    jogador = tabela_jogador.select_um(id_jogador)
+
+    # Salvar as alterações
+    if request.method == "POST":
+        nome = request.form.get("nome").strip()
+        numero_camisa = request.form.get("camisanumero") or None
+        posicao = request.form.get("posicao", "").strip()
+        time_id = request.form.get("time_id") or None
+
+        # Verificar se foi digitado
+        if not nome:
+            flash("Preencha o nome", "error")
+
+        elif not numero_camisa:
+            flash("Preencha a turma", "error")
+
+        elif not posicao:
+            flash("Preencha a posição", "error")
+
+        elif not time_id:
+            flash("Preencha o time", "error")
+
+        else:
+            jogador.nome = nome
+            jogador.numero_camisa = numero_camisa
+            jogador.posicao = posicao
+            jogador.time_id = int(time_id)
+            db_session.commit(jogador)
+
+    # Carregar as informações
+    jogadores = tabela_jogador.select_todos()
+
+    return render_template("jogadores.html", jogadores=jogadores, editar=jogador)
 
 @app.route("/times")
 def listar_times():
@@ -168,6 +283,35 @@ def nova_partida():
     times = tabela_time.select_todos()
     return render_template("partidas.html", partidas=partidas, times=times)
 
+@app.route("/movimentacao/nova/<int:id_jogador>")
+@app.route("/movimentacao/nova", methods=["GET", "POST"])
+def nova_movimentacao(id_jogador=None):
+    if request.method == "POST":
+        jogador_id = request.form.get("jogador_id")
+        time_destino_id = request.form.get("time_destino_id")
+
+        if not jogador_id:
+            flash("Selecione o jogador", "error")
+            return redirect(url_for("nova_movimentacao"))
+        if not time_destino_id:
+            flash("Selecione o time de destino", "error")
+            return redirect(url_for("nova_movimentacao"))
+
+        tabela_movimentacao.salvar(jogador_id, time_destino_id)
+        return redirect(url_for("nova_movimentacao"))
+
+    movimentacoes = tabela_movimentacao.select_todos()
+    jogadores = tabela_jogador.select_todos()
+    times = tabela_time.select_todos()
+
+    return render_template(
+        "movimentacoes.html",
+        movimentacoes=movimentacoes,
+        jogadores=jogadores,
+        times=times,
+        jogador_selecionado_id=id_jogador
+
+    )
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)

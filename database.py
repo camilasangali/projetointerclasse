@@ -1,11 +1,15 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker, scoped_session
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Date, DateTime
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker, scoped_session, DeclarativeBase
+from sqlalchemy.sql import func
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 
 engine = create_engine("mysql+pymysql://root:senaisp@localhost:3306/interclasse_db")
 
 db_session = scoped_session(sessionmaker(bind=engine))
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 class Time(Base):
     __tablename__ = "times"
@@ -39,6 +43,33 @@ class Partida(Base):
     gols_casa = Column(Integer, default=0)
     gols_visitante = Column(Integer, default=0)
     data_partida = Column(String(20))
+
+class Movimentacao(Base):
+    __tablename__ = "movimentacoes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    jogador_id = Column(Integer, ForeignKey("jogadores.id", ondelete="SET NULL"))
+    time_origem_id = Column(Integer, ForeignKey("times.id", ondelete="SET NULL"))
+    time_destino_id = Column(Integer, ForeignKey("times.id", ondelete="SET NULL"))
+    data_movimentacao = Column(DateTime)
+    def __repr__(self):
+        return f"<Movimentacao: {self.jogador_id}>"
+
+
+
+class Usuario(Base, UserMixin):
+    __tablename__ = "usuarios"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(50), nullable=False)
+    senha_hash = Column(String(250), nullable=False)
+    email = Column(String(120), unique=True, nullable=False)
+    criado_em = Column(DateTime, nullable=False, server_default=func.now())
+    atualizado_em = Column(DateTime, nullable=False, server_default=func.now())
+
+    def set_password(self, password):
+        self.senha_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.senha_hash, password)
 
 
 if __name__ == "__main__":

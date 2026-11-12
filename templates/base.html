@@ -11,6 +11,7 @@
     <div class="layout">
 
         <!-- MENU VERTICAL -->
+        {% if current_user . id %}
         <nav class="menu-lateral">
             <div class="menu-titulo">🏆 Interclasse</div>
             <ul>
@@ -38,8 +39,20 @@
                        <span class="icone">⚽</span> Partidas
                     </a>
                 </li>
+                <li>
+                    <a href="{{ url_for('nova_movimentacao') }}"
+                       class="{{ 'ativo' if 'movimentacao' in request.endpoint else '' }}">
+                       <span class="icone">⌛</span> Movimentações
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('logout') }}"
+                       <span class="icone">➡️</span> Sair [{{ current_user.nome }}]
+                    </a>
+                </li>
             </ul>
         </nav>
+{% endif %}
 
         <!-- CONTEÚDO -->
         <main class="conteudo">
